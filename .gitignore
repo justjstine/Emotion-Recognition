@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit and local configs
+.streamlit/secrets.toml
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Data and model artifacts
+models/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.h5
+*.joblib
+
+# Logs and temp
+*.log
+.cache/
