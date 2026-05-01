@@ -11,6 +11,7 @@ st.set_page_config(
     page_title="Emotion Recognition",
     layout="wide",
     initial_sidebar_state="collapsed",
+    page_icon="src/ui/testlogo.png",
 )
 
 apply_theme()
