@@ -52,7 +52,11 @@ class ModelEmotionPredictor(EmotionPredictor):
                 return cls(**config)
 
         custom_objects = {'InputLayer': LegacyInputLayer}
-        self.model = load_model(str(self.model_path), custom_objects=custom_objects)
+        self.model = load_model(
+            str(self.model_path),
+            custom_objects=custom_objects,
+            compile=False
+            )
 
         try:
             import cv2
