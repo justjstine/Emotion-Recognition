@@ -118,3 +118,138 @@ def apply_theme() -> None:
         """,
         unsafe_allow_html=True,
     )
+    # Additional app-specific styles (moved from app.py)
+    st.markdown(
+        """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Source+Sans+3:wght@400;600&display=swap');
+
+        :root {
+            --ink: #0f172a;
+            --muted: #64748b;
+            --bg: #f5f3ee;
+            --panel: #ffffff;
+            --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+            --accent: #0ea5e9;
+            --happy: #10b981;
+            --angry: #ef4444;
+            --surprised: #f59e0b;
+        }
+
+        .stApp {
+            background: radial-gradient(1200px 700px at 15% 0%, #fff8e6 0%, var(--bg) 55%, #eef2ff 100%);
+            color: var(--ink);
+            font-family: 'Source Sans 3', sans-serif;
+        }
+
+        .app-shell {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 12px 0 28px 0;
+        }
+
+        .title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: clamp(2.1rem, 3.2vw, 3.2rem);
+            letter-spacing: -0.02em;
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--muted);
+            font-size: 1.05rem;
+            margin-bottom: 18px;
+        }
+
+        .instruction {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-bottom: 18px;
+        }
+
+        .capture-panel {
+            background: var(--panel);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+            animation: fadeUp 600ms ease;
+        }
+
+        .result-panel {
+            border-radius: 22px;
+            padding: 18px;
+            min-height: 120px;
+            box-shadow: var(--shadow);
+            animation: fadeUp 700ms ease;
+        }
+
+        .result-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .result-emoji {
+            font-size: 2.8rem;
+            margin-right: 8px;
+        }
+
+        .result-main {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .result-confidence {
+            font-size: 1.05rem;
+            color: rgba(15, 23, 42, 0.8);
+            margin-top: 6px;
+        }
+
+        .result-note {
+            color: var(--muted);
+            margin-top: 10px;
+            font-size: 0.95rem;
+        }
+
+        .upload-hint {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-top: 8px;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        section[data-testid="stFileUploader"] {
+            padding: 10px 0 2px 0;
+        }
+
+        section[data-testid="stCameraInput"] {
+            padding: 12px 0 2px 0;
+        }
+
+        section[data-testid="stCameraInput"] label {
+            font-weight: 700;
+        }
+
+        button[kind="secondary"] {
+            border-radius: 12px;
+        }
+
+        .st-emotion-cache-1v0mbdj img {
+            border-radius: 16px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
