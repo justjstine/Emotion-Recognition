@@ -35,13 +35,22 @@ class ModelEmotionPredictor(EmotionPredictor):
         try:
             # Import lazily so the repo can be inspected without TF installed.
             from tensorflow.keras.models import load_model
+            from tensorflow.keras.layers import InputLayer
         except Exception as exc:  # pragma: no cover - environment dependent
             raise RuntimeError(
                 "TensorFlow is required to load the .h5 model. "
                 "Install with `pip install tensorflow-cpu` or `tensorflow` for GPU support."
             ) from exc
 
-        self.model = load_model(str(self.model_path))
+        # Custom deserialization handler for InputLayer to handle legacy model files
+        def deserialize_input_layer(config):
+            # Remove unsupported parameters from older model versions
+            config.pop('batch_shape', None)
+            config.pop('optional', None)
+            return InputLayer(**config)
+
+        custom_objects = {'InputLayer': deserialize_input_layer}
+        self.model = load_model(str(self.model_path), custom_objects=custom_objects)
 
         try:
             import cv2
