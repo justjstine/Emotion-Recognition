@@ -47,7 +47,9 @@ class ModelEmotionPredictor(EmotionPredictor):
             @classmethod
             def from_config(cls, config):
                 # Remove unsupported parameters from older model versions
-                config.pop('batch_shape', None)
+                batch_shape = config.pop('batch_shape', None)
+                if config.get("shape") is None and batch_shape is not None:
+                    config["shape"] = tuple(batch_shape[1:])
                 config.pop('optional', None)
                 return cls(**config)
 
