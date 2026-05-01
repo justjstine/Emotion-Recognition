@@ -43,13 +43,15 @@ class ModelEmotionPredictor(EmotionPredictor):
             ) from exc
 
         # Custom deserialization handler for InputLayer to handle legacy model files
-        def deserialize_input_layer(config):
-            # Remove unsupported parameters from older model versions
-            config.pop('batch_shape', None)
-            config.pop('optional', None)
-            return InputLayer(**config)
+        class LegacyInputLayer(InputLayer):
+            @classmethod
+            def from_config(cls, config):
+                # Remove unsupported parameters from older model versions
+                config.pop('batch_shape', None)
+                config.pop('optional', None)
+                return cls(**config)
 
-        custom_objects = {'InputLayer': deserialize_input_layer}
+        custom_objects = {'InputLayer': LegacyInputLayer}
         self.model = load_model(str(self.model_path), custom_objects=custom_objects)
 
         try:
