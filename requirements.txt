@@ -1,6 +1,7 @@
+python>=3.11,<3.12
 streamlit>=1.35.0
 pillow>=10.2.0
 numpy>=1.26.0
 pandas>=2.1.0
-tensorflow-cpu>=2.12.0  # optional: replace with `tensorflow` if you have GPU support
+tensorflow>=2.13.0,<2.14.0
 opencv-python>=4.9.0
