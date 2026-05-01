@@ -35,7 +35,7 @@ class ModelEmotionPredictor(EmotionPredictor):
         try:
             # Import lazily so the repo can be inspected without TF installed.
             from tensorflow.keras.models import load_model
-            from tensorflow.keras.layers import InputLayer
+            from tensorflow.keras.layers import Dense, InputLayer
         except Exception as exc:  # pragma: no cover - environment dependent
             raise RuntimeError(
                 "TensorFlow is required to load the .h5 model. "
@@ -53,7 +53,17 @@ class ModelEmotionPredictor(EmotionPredictor):
                 config.pop('optional', None)
                 return cls(**config)
 
-        custom_objects = {'InputLayer': LegacyInputLayer}
+        class LegacyDense(Dense):
+            @classmethod
+            def from_config(cls, config):
+                # Remove unsupported parameters from older/newer model versions
+                config.pop("quantization_config", None)
+                return cls(**config)
+
+        custom_objects = {
+            "InputLayer": LegacyInputLayer,
+            "Dense": LegacyDense,
+        }
         self.model = load_model(
             str(self.model_path),
             custom_objects=custom_objects,
