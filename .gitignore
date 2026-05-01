@@ -22,7 +22,6 @@ checkpoints/
 *.pt
 *.pth
 *.onnx
-*.h5
 *.joblib
 
 # Logs and temp
