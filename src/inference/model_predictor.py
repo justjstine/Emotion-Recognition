@@ -22,7 +22,11 @@ class YoloEmotionPredictor(EmotionPredictor):
     def __init__(self, model_path: str | Path, labels: Sequence[str] | None = None) -> None:
         model_path = Path(model_path)
         if not model_path.exists():
-            raise FileNotFoundError(f"Model file not found: {model_path}")
+            raise FileNotFoundError(
+                "Model file not found: "
+                f"{model_path}. Ensure the file exists in the project root, "
+                "or set MODEL_PATH to an absolute path to the model."
+            )
 
         self.model_path = model_path.resolve()
 

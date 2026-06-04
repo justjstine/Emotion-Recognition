@@ -83,23 +83,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+predictor = None
+predictor_error = None
+try:
+    predictor = load_predictor()
+except Exception as exc:
+    predictor_error = exc
+
 with st.sidebar:
     st.markdown("### Input")
     input_source = st.radio("Source", options=["Webcam", "Image Upload"], horizontal=False)
     st.markdown("### Options")
     show_probabilities = st.toggle("Show confidence bars", value=True)
     with st.expander("Advanced", expanded=False):
-        predictor = load_predictor()
-        st.caption(f"Backend: {predictor.name}")
-        model_path = getattr(predictor, "model_path", None)
-        if model_path is not None:
-            st.caption(f"Model file: {model_path}")
-        model_labels = getattr(predictor, "labels", None)
-        if model_labels is not None:
-            st.caption(f"Class order: {', '.join(model_labels)}")
+        if predictor is not None:
+            st.caption(f"Backend: {predictor.name}")
+            model_path = getattr(predictor, "model_path", None)
+            if model_path is not None:
+                st.caption(f"Model file: {model_path}")
+            model_labels = getattr(predictor, "labels", None)
+            if model_labels is not None:
+                st.caption(f"Class order: {', '.join(model_labels)}")
+        else:
+            st.caption("Backend: unavailable")
 
-if "predictor" not in locals():
-    predictor = load_predictor()
+if predictor is None:
+    st.error("Model could not be loaded.")
+    st.info(
+        "Ensure best_emotion_yolo.pt is included in the deployed app, or set MODEL_PATH "
+        "to a valid absolute path."
+    )
+    st.exception(predictor_error)
+    st.stop()
 
 left_col, right_col = st.columns([1.4, 1], gap="large")
 

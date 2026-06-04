@@ -23,6 +23,7 @@ checkpoints/
 *.pth
 *.onnx
 *.joblib
+!best_emotion_yolo.pt
 
 # Logs and temp
 *.log
