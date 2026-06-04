@@ -3,7 +3,7 @@
 ## Overview
 
 A simple Streamlit app for 3-class emotion recognition (happy, angry, surprised).
-The app loads a Keras model and runs inference on uploaded images.
+The app now loads a YOLOv8 classification model and runs inference on a cropped face region.
 
 ## Quick Start
 
@@ -20,8 +20,9 @@ streamlit run app.py
 
 ## Model Notes
 
-- Default model file: `emotion_model.h5`.
-- Update `src/inference/model_predictor.py` if you change input size, preprocessing, or class order.
+- Default model file: `best_emotion_yolo.pt`.
+- Face detection uses OpenCV Haar Cascade before classification.
+- Update `src/inference/model_predictor.py` if you change labels, crop behavior, or model handling.
 - Use `src/inference/loader.py` to control how the model is loaded.
 
 ## Notebook
@@ -33,7 +34,7 @@ Training workflow and experiments are in `Emotion_Recognition_CNN.ipynb`.
 ```text
 .
 ├── app.py
-├── emotion_model.h5
+├── best_emotion_yolo.pt
 ├── Emotion_Recognition_CNN.ipynb
 ├── requirements.txt
 ├── .streamlit/

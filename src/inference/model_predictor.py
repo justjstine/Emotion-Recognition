@@ -2,28 +2,22 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from PIL import Image as PILImage
 
 from src.inference.base import EmotionPredictor, PredictionResult
 
 
-class ModelEmotionPredictor(EmotionPredictor):
-    """Loads a Keras/TensorFlow `.h5` model and performs inference.
+class YoloEmotionPredictor(EmotionPredictor):
+    """Loads a YOLOv8 classification `.pt` model and performs inference.
 
-    Behavior:
-    - Attempts to import TensorFlow lazily and raises an informative error if missing.
-    - Loads the model at initialization (so it's reused across requests).
-    - Preprocesses PIL images by resizing to the model input shape and normalizing to [0,1].
-
-    Notes:
-    - This class is intentionally dependency-light at import time; installing
-      `tensorflow` or `tensorflow-cpu` is required to actually instantiate it.
-    - Supports both grayscale (1 channel) and RGB (3 channel) inputs.
+    The predictor detects the largest face in the input image with an OpenCV Haar
+    cascade, crops that face region, and sends the crop to Ultralytics YOLO for
+    classification.
     """
 
-    name = "model-cnn-h5"
+    name = "yolov8-cls"
 
     def __init__(self, model_path: str | Path, labels: Sequence[str] | None = None) -> None:
         model_path = Path(model_path)
@@ -33,65 +27,20 @@ class ModelEmotionPredictor(EmotionPredictor):
         self.model_path = model_path.resolve()
 
         try:
-            # Import lazily so the repo can be inspected without TF installed.
-            from tensorflow.keras.models import load_model
-            from tensorflow.keras.layers import Dense, InputLayer
-        except Exception as exc:  # pragma: no cover - environment dependent
-            raise RuntimeError(
-                "TensorFlow is required to load the .h5 model. "
-                "Install with `pip install tensorflow-cpu` or `tensorflow` for GPU support."
-            ) from exc
-
-        # Custom deserialization handler for InputLayer to handle legacy model files
-        class LegacyInputLayer(InputLayer):
-            @classmethod
-            def from_config(cls, config):
-                # Remove unsupported parameters from older model versions
-                batch_shape = config.pop('batch_shape', None)
-                if config.get("shape") is None and batch_shape is not None:
-                    config["shape"] = tuple(batch_shape[1:])
-                config.pop('optional', None)
-                return cls(**config)
-
-        class LegacyDense(Dense):
-            @classmethod
-            def from_config(cls, config):
-                # Remove unsupported parameters from older/newer model versions
-                config.pop("quantization_config", None)
-                return cls(**config)
-
-        custom_objects = {
-            "InputLayer": LegacyInputLayer,
-            "Dense": LegacyDense,
-        }
-        self.model = load_model(
-            str(self.model_path),
-            custom_objects=custom_objects,
-            compile=False
-            )
-
-        try:
             import cv2
         except Exception as exc:  # pragma: no cover - environment dependent
             raise RuntimeError(
-                "OpenCV is required for face detection. Install with `pip install opencv-python`."
+                "OpenCV is required for face detection. Install with `pip install opencv-python-headless`."
             ) from exc
 
-        # Determine expected input shape (height, width)
-        input_shape = getattr(self.model, "input_shape", None)
-        if input_shape is None:
-            raise RuntimeError("Cannot determine model input shape from loaded model")
+        try:
+            from ultralytics import YOLO
+        except Exception as exc:  # pragma: no cover - environment dependent
+            raise RuntimeError(
+                "Ultralytics is required to load the YOLOv8 classification model. "
+                "Install with `pip install ultralytics`."
+            ) from exc
 
-        # input_shape is typically (None, H, W, C) or (H, W, C)
-        if len(input_shape) == 4:
-            _, h, w, c = input_shape
-        elif len(input_shape) == 3:
-            h, w, c = input_shape
-        else:
-            raise RuntimeError(f"Unsupported model input shape: {input_shape}")
-
-        self.input_size = (int(w), int(h))
-        self.input_channels = int(c) if c is not None else 3
         self._cv2 = cv2
         self._face_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -99,78 +48,95 @@ class ModelEmotionPredictor(EmotionPredictor):
         if self._face_cascade.empty():
             raise RuntimeError("Failed to load Haar cascade for face detection")
 
-        env_labels = os.getenv("CLASS_NAMES", "")
-        if labels is not None:
-            self.labels = list(labels)
-        elif env_labels.strip():
-            self.labels = [label.strip().lower() for label in env_labels.split(",") if label.strip()]
-        else:
-            # Keras folder-based training commonly uses alphabetical class order.
-            self.labels = ["angry", "happy", "surprised"]
+        self.model = YOLO(str(self.model_path))
+        self.labels = self._resolve_labels(labels)
 
-    def predict(self, image: PILImage.Image) -> PredictionResult:
+    def _resolve_labels(self, labels: Sequence[str] | None) -> list[str]:
+        if labels is not None:
+            return list(labels)
+
+        env_labels = os.getenv("CLASS_NAMES", "").strip()
+        if env_labels:
+            return [label.strip().lower() for label in env_labels.split(",") if label.strip()]
+
+        model_labels = getattr(self.model, "names", None)
+        if model_labels:
+            ordered = self._ordered_labels(model_labels)
+            if ordered:
+                return ordered
+
+        return ["angry", "happy", "surprised"]
+
+    @staticmethod
+    def _ordered_labels(names: dict[int, str] | Iterable[str]) -> list[str]:
+        if isinstance(names, dict):
+            return [str(names[index]).strip().lower() for index in sorted(names)]
+        return [str(label).strip().lower() for label in names]
+
+    def _detect_face_crop(self, image: PILImage.Image) -> tuple[PILImage.Image, tuple[int, int, int, int]]:
         import numpy as np
 
-        # Detect face and crop to the largest bounding box.
         rgb = np.asarray(image.convert("RGB"))
-        bgr = self._cv2.cvtColor(rgb, self._cv2.COLOR_RGB2BGR)
-        gray = self._cv2.cvtColor(bgr, self._cv2.COLOR_BGR2GRAY)
-        faces = self._face_cascade.detectMultiScale(gray, 1.3, 5)
+        gray = self._cv2.cvtColor(rgb, self._cv2.COLOR_RGB2GRAY)
+        faces = self._face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(40, 40),
+        )
         if len(faces) == 0:
             raise ValueError("No face detected in the image")
 
-        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-        if self.input_channels == 1:
-            crop = gray[y : y + h, x : x + w]
-            image = PILImage.fromarray(crop, mode="L")
-        else:
-            crop = rgb[y : y + h, x : x + w]
-            image = PILImage.fromarray(crop)
+        x, y, w, h = max(faces, key=lambda face: face[2] * face[3])
+        pad_x = int(w * 0.12)
+        pad_y = int(h * 0.18)
+        left = max(0, x - pad_x)
+        top = max(0, y - pad_y)
+        right = min(rgb.shape[1], x + w + pad_x)
+        bottom = min(rgb.shape[0], y + h + pad_y)
 
-        # Preprocess to match the model's expected channel count.
-        if self.input_channels == 1:
-            img = image.convert("L").resize(self.input_size)
-            arr = np.asarray(img).astype("float32") / 255.0
-            arr = np.expand_dims(arr, axis=-1)
-        else:
-            img = image.convert("RGB").resize(self.input_size)
-            arr = np.asarray(img).astype("float32") / 255.0
+        crop = rgb[top:bottom, left:right]
+        if crop.size == 0:
+            raise ValueError("No face detected in the image")
 
-            if arr.shape[-1] != self.input_channels:
-                if self.input_channels == 1:
-                    arr = np.mean(arr, axis=-1, keepdims=True)
-                else:
-                    arr = arr[:, :, : self.input_channels]
+        return PILImage.fromarray(crop), (left, top, right - left, bottom - top)
 
-        # Model expects batch dimension
-        batch = np.expand_dims(arr, axis=0)
+    def predict(self, image: PILImage.Image) -> PredictionResult:
+        crop_image, _ = self._detect_face_crop(image)
 
-        preds = self.model.predict(batch)
-        # If model returns logits, apply softmax
-        if preds.ndim == 2:
-            probs = preds[0]
-        else:
-            probs = preds.flatten()
+        results = self.model.predict(source=crop_image, verbose=False)
+        if not results:
+            raise RuntimeError("YOLO classification returned no results")
 
-        # Normalize to sum=1
-        probs = np.asarray(probs, dtype="float32")
-        if probs.sum() <= 0:
+        result = results[0]
+        probs_obj = getattr(result, "probs", None)
+        if probs_obj is None:
+            raise RuntimeError("YOLO classification result did not include probabilities")
+
+        import numpy as np
+
+        probs = np.asarray(probs_obj.data.cpu().numpy(), dtype="float32")
+        if probs.size == 0:
+            raise RuntimeError("YOLO classification result was empty")
+
+        label_names = self._ordered_labels(getattr(result, "names", None) or getattr(self.model, "names", {}))
+        if label_names:
+            self.labels = label_names
+
+        if probs.shape[0] != len(self.labels):
+            aligned = np.zeros(len(self.labels), dtype="float32")
+            count = min(len(aligned), probs.shape[0])
+            aligned[:count] = probs[:count]
+            probs = aligned
+
+        total = float(probs.sum())
+        if total <= 0:
             probs = np.ones_like(probs) / len(probs)
         else:
-            probs = probs / probs.sum()
-
-        # Match length to labels; if mismatch, trim or pad with zeros
-        if probs.shape[0] != len(self.labels):
-            # Pad or truncate
-            import math
-
-            new = np.zeros(len(self.labels), dtype="float32")
-            for i in range(min(len(new), probs.shape[0])):
-                new[i] = float(probs[i])
-            probs = new
+            probs = probs / total
 
         probabilities = {label: float(prob) for label, prob in zip(self.labels, probs)}
-        top_idx = int(probabilities and max(range(len(self.labels)), key=lambda i: probs[i]))
+        top_idx = int(np.argmax(probs))
         top_label = self.labels[top_idx]
         top_conf = float(probs[top_idx])
 
@@ -179,5 +145,8 @@ class ModelEmotionPredictor(EmotionPredictor):
             confidence=top_conf,
             probabilities=probabilities,
             model_name=self.name,
-            notes=f"Loaded model file: {self.model_path.name} | Face detected: yes",
+            notes=f"Loaded model file: {self.model_path.name} | Face detected: yes | Cropped face: yes",
         )
+
+
+ModelEmotionPredictor = YoloEmotionPredictor
